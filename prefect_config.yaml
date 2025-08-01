@@ -1,0 +1,142 @@
+# Prefect-Atomate2 Configuration
+# ==============================
+
+# Workflow Settings
+workflows:
+  vasp:
+    default_settings:
+      relax:
+        input_set_generator:
+          user_incar_settings:
+            ENCUT: 520
+            EDIFF: 1.0e-6
+            PREC: "Accurate"
+            ISIF: 3  # Relax cell and ions
+            NSW: 50  # Max ionic steps
+      static:
+        input_set_generator:
+          user_incar_settings:
+            ENCUT: 520
+            EDIFF: 1.0e-7
+            PREC: "Accurate"
+            LORBIT: 11  # Write DOSCAR and PROCAR
+      bands:
+        input_set_generator:
+          user_incar_settings:
+            ENCUT: 520
+            EDIFF: 1.0e-7
+            PREC: "Accurate"
+            LORBIT: 11
+            ICHARG: 11  # Non-SCF calculation
+
+# Compute Resources
+compute:
+  local:
+    max_concurrent_jobs: 2
+    scratch_dir: "/tmp/vasp_calculations"
+    
+  cluster:
+    scheduler: "slurm"
+    default_resources:
+      nodes: 1
+      ntasks: 24
+      time: "02:00:00"
+      partition: "compute"
+      memory: "64GB"
+      
+  docker:
+    image: "materialsproject/atomate2:latest"
+    volumes:
+      - "/data/potentials:/opt/vasp/potentials:ro"
+      - "/data/calculations:/tmp/calculations:rw"
+
+# Prefect Settings
+prefect:
+  server_url: "http://localhost:4200"
+  
+  # Work pools
+  work_pools:
+    - name: "local-pool"
+      type: "process"
+      concurrency_limit: 4
+      
+    - name: "docker-pool" 
+      type: "docker"
+      concurrency_limit: 10
+      
+    - name: "cluster-pool"
+      type: "kubernetes"
+      concurrency_limit: 50
+
+  # Storage
+  storage:
+    type: "local"
+    basepath: "/data/prefect_storage"
+
+# Monitoring and Alerts
+monitoring:
+  health_check_interval: "*/15 * * * *"  # Every 15 minutes
+  
+  alerts:
+    email:
+      smtp_server: "smtp.example.com"
+      from_address: "atomate2@example.com"
+      recipients:
+        - "admin@example.com"
+    
+    slack:
+      webhook_url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+      channel: "#atomate2-alerts"
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  handlers:
+    - type: "file"
+      filename: "/var/log/atomate2-prefect.log"
+      max_bytes: 10485760  # 10MB
+      backup_count: 5
+      
+    - type: "console"
+
+# Database Settings (for results storage)
+databases:
+  mongodb:
+    host: "localhost"
+    port: 27017
+    database: "atomate2_results"
+    
+  postgresql:
+    host: "localhost"
+    port: 5432
+    database: "prefect_workflows"
+    username: "prefect_user"
+    # password should be set via environment variable
+
+# File Paths
+paths:
+  vasp_potentials: "/opt/vasp/potentials"
+  pseudopotentials: "/opt/pseudopotentials"
+  structures_library: "/data/structures"
+  results_archive: "/data/results"
+  
+# Material-specific Settings
+materials:
+  high_throughput:
+    max_concurrent: 20
+    timeout_hours: 6
+    retry_attempts: 2
+    
+  production:
+    max_concurrent: 5
+    timeout_hours: 24
+    retry_attempts: 3
+    notification_level: "all"
+    
+  development:
+    max_concurrent: 2
+    timeout_hours: 2
+    retry_attempts: 1
+    notification_level: "errors_only"

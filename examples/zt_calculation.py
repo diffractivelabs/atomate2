@@ -241,19 +241,26 @@ def run_single_material_calculation():
     zt_flow = zt_maker.make(structure)
     print(f"✓ Workflow created with {len(zt_flow.jobs)} jobs")
     
-    # In production, you would run:
-    # result = run_locally(zt_flow)
+    print("\nExecuting ZT workflow...")
+    print("This will run:")
+    for i, job in enumerate(zt_flow.jobs, 1):
+        print(f"  {i}. {job.name}")
     
-    print("\nWorkflow execution:")
-    print("  To run this workflow, execute:")
-    print("    result = run_locally(zt_flow)")
-    print("  This will run all calculations and return ZT results")
+    # Run the actual workflow
+    print("\n🚀 Starting workflow execution...")
+    result = run_locally(zt_flow)
     
-    # Simulate results for demonstration
-    demo_results = simulate_zt_results(material_name)
-    analyze_results(demo_results, material_name)
+    # Check if workflow actually succeeded
+    if result is None:
+        print("❌ Workflow returned None - execution failed")
+        return None
     
-    return zt_flow
+    print("✅ Workflow completed successfully!")
+    
+    # Analyze real results
+    analyze_results(result, material_name)
+    
+    return result
 
 def run_high_throughput_screening():
     """Run high-throughput ZT screening for multiple materials."""
@@ -284,80 +291,27 @@ def run_high_throughput_screening():
     print(f"  2. Filter materials with ZT > {ht_zt_maker.screening_threshold}")
     print(f"  3. Run full calculations only on promising candidates")
     
-    # Simulate screening results
-    print(f"\nSimulated screening results:")
-    for i, (name, _) in enumerate(structures):
-        simulated_zt = 0.3 + 0.4 * np.random.random()  # Random ZT between 0.3-0.7
-        status = "✓ Selected" if simulated_zt > 0.5 else "✗ Filtered out"
-        print(f"  {name}: ZT = {simulated_zt:.3f} - {status}")
+    print(f"\n🚀 Starting high-throughput screening...")
+    screening_results = run_locally(screening_flow)
     
-    return screening_flow
+    if screening_results is None:
+        print("❌ High-throughput screening failed - returned None")
+        return None
+        
+    print("✅ High-throughput screening completed!")
+    
+    # Analyze screening results
+    print(f"\nScreening results:")
+    if isinstance(screening_results, list):
+        for i, result in enumerate(screening_results):
+            name = material_names[i] if i < len(material_names) else f"Material_{i}"
+            if isinstance(result, dict) and 'max_zt' in result:
+                zt_val = result['max_zt']
+                status = "✓ Selected" if zt_val > ht_zt_maker.screening_threshold else "✗ Filtered out"
+                print(f"  {name}: ZT = {zt_val:.3f} - {status}")
+    
+    return screening_results
 
-def simulate_zt_results(material_name="Silicon"):
-    """Generate realistic ZT results for demonstration."""
-    
-    # Temperature range
-    if DEMO_MODE:
-        temperatures = np.array([300, 450, 600])
-    else:
-        temperatures = np.arange(200, 801, 50)
-    
-    # Material-specific properties
-    if material_name == "Silicon":
-        # Silicon has moderate ZT due to high thermal conductivity
-        max_zt = 0.25
-        opt_temp = 400
-        base_kappa = 150
-    elif material_name == "Germanium":
-        # Germanium has better ZT than Si due to lower thermal conductivity
-        max_zt = 0.45
-        opt_temp = 500
-        base_kappa = 80
-    elif material_name == "SiC":
-        # SiC has lower ZT due to wide bandgap
-        max_zt = 0.15
-        opt_temp = 600
-        base_kappa = 120
-    else:
-        max_zt = 0.35
-        opt_temp = 450
-        base_kappa = 100
-    
-    # Generate realistic temperature-dependent data
-    zt_values = []
-    power_factors = []
-    kappa_electronic = []
-    kappa_phononic = []
-    
-    for T in temperatures:
-        # ZT peaks at optimal temperature
-        zt = max_zt * np.exp(-((T - opt_temp)/200)**2)
-        
-        # Power factor increases with temperature initially
-        pf = 5e-4 * (T/300)**0.5 * zt/max_zt
-        
-        # Electronic thermal conductivity follows Wiedemann-Franz law
-        kappa_e = 2.44e-8 * 1e4 * T  # Approximate
-        
-        # Phononic thermal conductivity decreases with temperature
-        kappa_p = base_kappa * (300/T)**0.8
-        
-        zt_values.append(zt)
-        power_factors.append(pf)
-        kappa_electronic.append(kappa_e)
-        kappa_phononic.append(kappa_p)
-    
-    return {
-        'material': material_name,
-        'temperatures': temperatures.tolist(),
-        'zt_values': zt_values,
-        'max_zt': float(np.max(zt_values)),
-        'optimal_temperature': float(temperatures[np.argmax(zt_values)]),
-        'power_factor': power_factors,
-        'thermal_conductivity_electronic': kappa_electronic,
-        'thermal_conductivity_phononic': kappa_phononic,
-        'thermal_conductivity_total': [e+p for e,p in zip(kappa_electronic, kappa_phononic)],
-    }
 
 def analyze_results(results, material_name=""):
     """Analyze and display ZT calculation results."""
@@ -366,15 +320,27 @@ def analyze_results(results, material_name=""):
     print(f"ZT ANALYSIS RESULTS - {material_name}")
     print("-"*50)
     
-    print(f"Maximum ZT: {results['max_zt']:.3f}")
-    print(f"Optimal temperature: {results['optimal_temperature']:.0f} K")
+    # Handle workflow results
+    if isinstance(results, dict) and 'zt_results' in results:
+        # Real workflow results
+        zt_data = results['zt_results']
+        print("✅ Results from actual ZT workflow calculation")
+        
+        print(f"Maximum ZT: {zt_data['max_zt']:.3f}")
+        print(f"Optimal temperature: {zt_data['optimal_temperature']:.0f} K")
+    else:
+        print("❌ Unable to parse results - unexpected result format")
+        print(f"Result type: {type(results)}")
+        if isinstance(results, dict):
+            print(f"Available keys: {list(results.keys())}")
+        return
     
     # Performance assessment
-    if results['max_zt'] > 1.0:
+    if zt_data['max_zt'] > 1.0:
         assessment = "Excellent thermoelectric material"
-    elif results['max_zt'] > 0.5:
+    elif zt_data['max_zt'] > 0.5:
         assessment = "Good thermoelectric material"
-    elif results['max_zt'] > 0.2:
+    elif zt_data['max_zt'] > 0.2:
         assessment = "Moderate thermoelectric material"
     else:
         assessment = "Poor thermoelectric material"
@@ -383,24 +349,24 @@ def analyze_results(results, material_name=""):
     
     # Temperature dependence
     print(f"\nTemperature dependence:")
-    temps = results['temperatures']
-    zts = results['zt_values']
+    temps = zt_data['temperatures']
+    zts = zt_data['zt_values']
     for i in range(0, len(temps), max(1, len(temps)//5)):  # Show ~5 points
         print(f"  {temps[i]:.0f} K: ZT = {zts[i]:.3f}")
     
     # Thermal conductivity breakdown at optimal temperature
-    opt_idx = np.argmax(results['zt_values'])
-    kappa_e = results['thermal_conductivity_electronic'][opt_idx]
-    kappa_p = results['thermal_conductivity_phononic'][opt_idx]
-    kappa_total = results['thermal_conductivity_total'][opt_idx]
+    opt_idx = np.argmax(zt_data['zt_values'])
+    kappa_e = zt_data['thermal_conductivity_electronic'][opt_idx]
+    kappa_p = zt_data['thermal_conductivity_phononic'][opt_idx]
+    kappa_total = zt_data['thermal_conductivity_total'][opt_idx]
     
-    print(f"\nThermal conductivity at optimal T ({results['optimal_temperature']:.0f} K):")
+    print(f"\nThermal conductivity at optimal T ({zt_data['optimal_temperature']:.0f} K):")
     print(f"  Electronic: {kappa_e:.1f} W/m·K ({100*kappa_e/kappa_total:.1f}%)")
     print(f"  Phononic: {kappa_p:.1f} W/m·K ({100*kappa_p/kappa_total:.1f}%)")
     print(f"  Total: {kappa_total:.1f} W/m·K")
     
     # Create plots if matplotlib available
-    plot_results(results)
+    plot_results(zt_data)
 
 def plot_results(results):
     """Create plots of ZT results."""
@@ -483,26 +449,64 @@ def print_summary():
     print("- Include spin-orbit coupling for heavy elements")
     print("- Consider phonon anharmonicity for high temperatures")
 
+def setup_ase_configuration():
+    """Set up ASE configuration for Quantum ESPRESSO."""
+    
+    # Create ASE configuration file
+    try:
+        ase_config_dir = os.path.expanduser("~/.config/ase")
+        os.makedirs(ase_config_dir, exist_ok=True)
+        
+        config_file = os.path.join(ase_config_dir, "config.ini")
+        with open(config_file, 'w') as f:
+            f.write("[espresso]\n")
+            f.write("command = pw.x\n")
+            f.write("pseudo_dir = /app/pseudopotentials\n")
+        
+        print(f"✓ Created ASE configuration: {config_file}")
+        return True
+        
+    except Exception as e:
+        print(f"⚠️  Could not create ASE configuration: {e}")
+        return False
+
 def main():
     """Main execution function."""
     print("Thermoelectric ZT Calculation with atomate2")
     print("="*60)
+    print("🔬 This will attempt ACTUAL ZT calculations using:")
+    print("   - Quantum ESPRESSO for electronic structure")
+    print("   - BoltzTraP2 for transport properties")  
+    print("   - Phonopy for phonon calculations")
+    print("   - atomate2 workflows for integration")
+    print("")
+    print("📝 Note: If QE configuration fails, workflow will stop with error")
+    print("")
     
     # Parse command line arguments
     parse_arguments()
     
+    # Set up ASE configuration
+    print("Setting up ASE configuration...")
+    setup_ase_configuration()
+    
     # Check dependencies
     if not check_dependencies():
-        print("\n⚠️  Some dependencies are missing but continuing with demo...")
+        print("\n⚠️  Some dependencies are missing but continuing...")
+        print("   Workflow execution may fail without proper setup")
     
     # Run appropriate calculation mode
     if HIGH_THROUGHPUT:
-        run_high_throughput_screening()
+        result = run_high_throughput_screening()
     else:
-        run_single_material_calculation()
+        result = run_single_material_calculation()
     
-    # Print summary
-    print_summary()
+    # Print summary only if we have results
+    if result is not None:
+        print_summary()
+    else:
+        print("\n❌ Workflow execution failed - no results to analyze")
+        print("   Check the error messages above for details")
     
     print(f"\n✓ ZT calculation example completed!")
     print(f"Run 'python {sys.argv[0]} --help' for more options.")

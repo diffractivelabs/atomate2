@@ -46,13 +46,36 @@ def run_qe_calculation(
     QETaskDocument
         Task document with calculation results.
     """
-    from ase.calculators.espresso import Espresso
+    from ase.calculators.espresso import Espresso, EspressoProfile
     import numpy as np
+    import os
     
-    # Set up calculator
+    # Set up ASE profile similar to the working QE script
+    profile = EspressoProfile(
+        command='pw.x',
+        pseudo_dir=os.environ.get('ESPRESSO_PSEUDO', '/app/pseudopotentials')
+    )
+    
+    # Set up calculator with explicit profile and input_data structure
+    input_data = {
+        'calculation': calculation_type,
+        'verbosity': 'high',
+        'restart_mode': 'from_scratch',
+        'tstress': True,
+        'tprnfor': True,
+    }
+    
+    # Add settings from input_settings, handling special cases
+    for key, value in input_settings.items():
+        if key in ['kpts', 'pseudopotentials']:
+            continue  # Handle these separately
+        input_data[key] = value
+    
     calc = Espresso(
-        calculation=calculation_type,
-        **input_settings
+        profile=profile,
+        pseudopotentials=input_settings.get('pseudopotentials', {}),
+        input_data=input_data,
+        kpts=input_settings.get('kpts', (8, 8, 8))
     )
     
     # Run calculation

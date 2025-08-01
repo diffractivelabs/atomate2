@@ -57,9 +57,12 @@ class BandGapMaker(Maker):
         scf_job = self.scf_maker.make(structure, prev_dir=prev_dir)
         scf_job.name = "scf calculation"
         
-        # Step 2: Bands calculation using SCF results
+        # Step 2: Bands calculation using same structure and SCF results
+        # Create a copy of the structure to avoid OutputReference issues
+        from copy import deepcopy
+        structure_copy = deepcopy(structure)
         bands_job = self.bands_maker.make(
-            scf_job.output.structure,
+            structure_copy,
             prev_dir=scf_job.output.dir_name
         )
         bands_job.name = "bands calculation"
