@@ -77,7 +77,7 @@ run-zt: build-if-needed
 		--entrypoint /bin/bash atomate2-qe-amd64 \
 		-c "source /opt/conda/bin/activate qe-env && cd /app && python3 examples/zt_calculation.py --demo"
 
-# Run ZT calculation in production mode (accurate parameters) 
+# Run ZT calculation in production mode (accurate parameters)
 run-zt-production: build-if-needed
 	@echo "Running ZT Calculation (PRODUCTION mode - accurate parameters)..."
 	@echo "=================================================================="
@@ -165,3 +165,6 @@ dev: build-if-needed
 		-p 8888:8888 \
 		--entrypoint /bin/bash atomate2-qe-amd64 \
 		-c "source /opt/conda/bin/activate qe-env && cd /app && exec bash"
+
+qe_example: build-if-needed
+	@docker run -v "$(PWD):/src" --platform linux/amd64 --rm atomate2-qe-amd64 bash -c "cd /src && export OMPI_MCA_plm_rsh_agent= && export

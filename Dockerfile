@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Create conda environment with all dependencies
-RUN mamba create -n qe-env -c conda-forge \
+RUN mamba create --yes -n qe-env -c conda-forge \
     python=3.11 \
     qe \
     phonopy \
@@ -29,6 +29,9 @@ SHELL ["conda", "run", "-n", "qe-env", "/bin/bash", "-c"]
 RUN mamba install -n qe-env -c conda-forge boltztrap2 || \
     echo "BoltzTraP2 conda package not available, continuing without it for demo purposes"
 
+
+RUN mamba install -n qe-env -c conda-forge pymatgen
+
 # Set up working directory
 WORKDIR /app
 
@@ -43,8 +46,12 @@ RUN mkdir -p /app/pseudopotentials
 WORKDIR /app/pseudopotentials
 
 # Download basic pseudopotentials for Silicon and Germanium
-RUN wget -q http://pseudopotentials.quantum-espresso.org/upf_files/Si.pbe-n-rrkjus_psl.1.0.0.UPF || echo "Failed to download Si pseudopotential"
-RUN wget -q http://pseudopotentials.quantum-espresso.org/upf_files/Ge.pbe-dn-rrkjus_psl.1.0.0.UPF || echo "Failed to download Ge pseudopotential"
+# RUN wget -q http://pseudopotentials.quantum-espresso.org/upf_files/Si.pbe-n-rrkjus_psl.1.0.0.UPF || echo "Failed to download Si pseudopotential"
+# RUN wget -q http://pseudopotentials.quantum-espresso.org/upf_files/Ge.pbe-dn-rrkjus_psl.1.0.0.UPF || echo "Failed to download Ge pseudopotential"
+
+RUN cd /app/pseudopotentials && wget https://archive.materialscloud.org/api/records/rcyfm-68h65/files/SSSP_1.3.0_PBE_efficiency.tar.gz/content -O SSSP_1.3.0_PBE_efficiency.tar.gz
+RUN cd /app/pseudopotentials && tar -xzf SSSP_1.3.0_PBE_efficiency.tar.gz
+RUN cd /app/pseudopotentials && wget https://archive.materialscloud.org/api/records/rcyfm-68h65/files/SSSP_1.3.0_PBE_efficiency.json/content -O SSSP_1.3.0_PBE_efficiency.json
 
 # Set environment variables
 ENV ESPRESSO_PSEUDO=/app/pseudopotentials
